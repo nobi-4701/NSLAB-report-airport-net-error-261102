@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[상세] 인천공항 체크인 장애 분석 및 PureEdge 솔루션 제안</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <style>
+    :root {
+      --primary: #1a3a5c;
+      --accent:  #2563eb;        /* 단일 강조색 */
+      --accent-light: #eff6ff;
+      --danger:  #dc2626;
+      --danger-light: #fef2f2;
+      --warn:    #ea580c;
+      --warn-light: #fff7ed;
+      --ok:      #16a34a;
+      --ok-light: #f0fdf4;
+      --gray-bg: #f8fafc;
+      --border:  #e5e7eb;
+      --text:    #1e293b;        /* #000 대신 진한 slate */
+      --muted:   #64748b;
+      --white:   #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background: var(--gray-bg);
+      color: var(--text);
+      line-height: 1.8;
+      font-size: 15px;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+
+    /* ── Backlink bar ── */
+    .backlink-bar {
+      background: #0d2137;
+      padding: 10px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .backlink-bar a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color .2s;
+    }
+    .backlink-bar a:hover { color: #fff; }
+    .backlink-bar .page-badge {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      color: rgba(255,255,255,.7);
+      font-size: 11px;
+      padding: 2px 10px;
+      border-radius: 12px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0d2137 0%, #1a5276 100%);
+      color: var(--white);
+      padding: 48px 40px 36px;
+    }
+    header .label {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.35;
+      margin-bottom: 12px;
+    }
+    header .meta {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+    }
+    header .meta span { margin-right: 24px; }
+
+    /* ── Nav ── */
+    nav {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 0 40px;
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+    }
+    nav a {
+      display: block;
+      padding: 14px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      white-space: nowrap;
+      border-bottom: 3px solid transparent;
+      transition: color .2s, border-color .2s;
+    }
+    nav a:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 40px 40px 80px;
+    }
+    @media (max-width: 900px) {
+      main { padding: 32px 20px 60px; }
+    }
+
+    /* ── Section ── */
+    section { margin-bottom: 60px; }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--primary);
+    }
+    .section-num {
+      background: var(--primary);
+      color: var(--white);
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+    .section-title h2 { font-size: 20px; font-weight: 700; color: var(--primary); }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--primary);
+    }
+
+    /* ── Highlight box ── */
+    .box {
+      border-radius: 8px;
+      padding: 18px 22px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .box.danger  { background: var(--danger-light); border-left: 4px solid var(--danger); }
+    .box.warn    { background: var(--warn-light);   border-left: 4px solid var(--warn);   }
+    .box.ok      { background: var(--ok-light);     border-left: 4px solid var(--ok);     }
+    .box.info    { background: var(--accent-light); border-left: 4px solid var(--accent); }
+    .box strong  { display: block; margin-bottom: 6px; font-size: 13px; letter-spacing: .04em; }
+
+    /* ── Timeline ── */
+    .timeline { list-style: none; position: relative; padding-left: 28px; }
+    .timeline::before {
+      content: '';
+      position: absolute; left: 8px; top: 6px; bottom: 6px;
+      width: 2px; background: var(--border);
+    }
+    .timeline li {
+      position: relative;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .timeline li::before {
+      content: '';
+      position: absolute; left: -22px; top: 6px;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--white);
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+    .timeline li .time {
+      display: inline-block;
+      background: var(--primary);
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+
+    /* ── TL;DR ── */
+    .tldr {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+    }
+    .tldr-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+    .tldr ul {
+      padding-left: 18px;
+      font-size: 14px;
+      line-height: 2;
+      color: var(--text);
+    }
+    .tldr .action {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(37,99,235,.2);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    /* ── Table ── */
+    .tbl-wrap { overflow-x: auto; margin-bottom: 8px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+    th {
+      background: var(--primary);
+      color: var(--white);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: var(--gray-bg); }
+    td.hi { font-weight: 700; color: var(--ok); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .source-note { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── Grid ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 640px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ── Metric card ── */
+    .metric {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    .metric .val {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+    .metric .unit { font-size: 14px; color: var(--muted); }
+    .metric .label { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+    /* ── Problem map ── */
+    .prob-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+    }
+    .prob-icon {
+      font-size: 22px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .prob-row h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--primary); }
+    .prob-row p  { font-size: 13px; color: var(--muted); }
+
+    /* ── Solution step ── */
+    .step-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 640px) { .step-grid { grid-template-columns: 1fr; } }
+
+    .step {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 20px;
+      position: relative;
+    }
+    .step-num {
+      position: absolute;
+      top: -14px; left: 20px;
+      background: var(--accent);
+      color: var(--white);
+      font-size: 12px; font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 10px;
+    }
+    .step h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--primary); }
+    .step p  { font-size: 13px; color: var(--muted); }
+
+    /* ── Tag ── */
+    .tag {
+      display: inline-block;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid #b8d9f5;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      margin: 2px 2px 2px 0;
+    }
+
+    /* ── Comparison bar ── */
+    .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .bar-label { width: 140px; font-size: 13px; flex-shrink: 0; }
+    .bar-bg {
+      flex: 1; background: var(--border); border-radius: 4px; height: 20px; overflow: hidden;
+    }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; }
+    .bar-fill span { font-size: 11px; font-weight: 700; color: var(--white); white-space: nowrap; }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--primary);
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+    }
+    footer strong { color: var(--white); }
+    footer a { color: rgba(255,255,255,.7); }
+    footer a:hover { color: #fff; }
+
+    /* ── Callout boxes ── */
+    .callout {
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin: 12px 0 16px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .callout-title { font-weight: 700; margin-bottom: 4px; }
+    .callout.insight { background: #f0fdf4; border-left: 4px solid var(--ok); }
+    .callout.risk    { background: var(--warn-light); border-left: 4px solid var(--warn); }
+    .callout.ref     { background: var(--gray-bg); border-left: 4px solid var(--muted); }
+
+    /* ── Details/Summary ── */
+    details {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    details > summary {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    details > summary::before { content: "▶"; font-size: 10px; transition: transform .2s; }
+    details[open] > summary::before { transform: rotate(90deg); }
+    details > .details-body {
+      padding: 0 16px 16px;
+      font-size: 13.5px;
+      line-height: 1.75;
+      color: var(--text);
+    }
+
+    /* ── Print ── */
+    @media print {
+      .backlink-bar, nav, .no-print { display: none !important; }
+      body { background: #fff; font-size: 12px; }
+      main { max-width: 100%; padding: 0; }
+      header { background: var(--primary) !important; -webkit-print-color-adjust: exact; }
+      table, .card, .metric, .kpi { page-break-inside: avoid; }
+      section { page-break-before: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── 백링크 바 ── -->
+<div class="backlink-bar">
+  <div style="display:flex;gap:8px;align-items:center;">
+    <a href="index.html" style="color:rgba(255,255,255,.5);font-size:12px;padding:4px 10px;border:1px solid rgba(255,255,255,.2);border-radius:6px;text-decoration:none;">← 홈</a>
+    <a href="summary.html">&#8592; 요약 보기 (5장)</a>
+  </div>
+  <span class="page-badge">상세 분석 페이지</span>
+</div>
+
+<!-- ────────────────────────── HEADER ────────────────────────── -->
+<header>
+  <div class="label">NSLab Inc. 내부 보고서 · 2026-11-02 · 상세 분석</div>
+  <h1>인천공항 체크인 장애 분석<br>및 PureEdge 솔루션 제안</h1>
+  <div class="meta">
+    <span>작성일: 2026년 11월 2일</span>
+    <span>대상 사건: 2026년 10월 30일 인천국제공항 발권 장애</span>
+    <span>제안 기술: NSLab Inc. 자체 개발 — PureEdge AI-Driven Scheduling</span>
+  </div>
+</header>
+
+<!-- ────────────────────────── NAV ────────────────────────── -->
+<nav>
+  <a href="index.html">🏠 홈</a>
+  <a href="summary.html">&#8592; 요약(5장)</a>
+  <a href="#tldr">TL;DR</a>
+  <a href="#overview">1. 사고 개요</a>
+  <a href="#limits">2. 기존 한계</a>
+  <a href="#core">3. 핵심 문제</a>
+  <a href="#pureedge">4. PureEdge</a>
+  <a href="#performance">5. 성능 비교</a>
+  <a href="#proposal">6. 적용 제안</a>
+  <a href="#biz">7. 비용·리스크</a>
+</nav>
+
+<!-- ────────────────────────── MAIN ────────────────────────── -->
+<main>
+
+  <!-- ── 3단 플로우 타일 ── -->
+  <section id="flow" style="margin-bottom:48px; margin-top:8px;">
+    <div style="display:flex; align-items:stretch; gap:0;">
+
+      <!-- 타일 1: 문제 -->
+      <div style="flex:1; background:linear-gradient(160deg,#c0392b,#96281b); color:#fff; border-radius:12px 0 0 12px; padding:32px 28px; position:relative;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.12em; opacity:.75; margin-bottom:10px;">STEP 01</div>
+        <div style="font-size:22px; font-weight:800; margin-bottom:18px; line-height:1.3;">문제<br><span style="font-size:13px; font-weight:400; opacity:.85;">What Happened</span></div>
+        <ul style="list-style:none; font-size:13px; line-height:2.1; opacity:.95;">
+          <li>🔴 ARINC 통신망 단일 장애점</li>
+          <li>🔴 TravelSky 발권 시스템 중단</li>
+          <li>🔴 자동 전환 없음 → 수기 수속</li>
+          <li>🔴 12시간 복구, 38편 지연</li>
+          <li>🔴 1,200명 승객 대기 발생</li>
+        </ul>
+        <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,.25); font-size:12px; opacity:.75;">
+          2026.10.30 · 인천국제공항
+        </div>
+      </div>
+
+      <!-- 화살표 -->
+      <div style="display:flex; align-items:center; background:#eef2f7; padding:0 4px; z-index:1;">
+        <div style="font-size:28px; color:#1a3a5c; line-height:1;">&#8250;</div>
+      </div>
+
+      <!-- 타일 2: 적용안 -->
+      <div style="flex:1; background:linear-gradient(160deg,#1a5276,#154360); color:#fff; padding:32px 28px; position:relative;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.12em; opacity:.75; margin-bottom:10px;">STEP 02</div>
+        <div style="font-size:22px; font-weight:800; margin-bottom:18px; line-height:1.3;">적용안<br><span style="font-size:13px; font-weight:400; opacity:.85;">PureEdge Solution</span></div>
+        <ul style="list-style:none; font-size:13px; line-height:2.1; opacity:.95;">
+          <li>🟡 AI 스케줄러 — 20~30ms 자동 전환</li>
+          <li>🟡 Primary → Backup(IPFS) 자동 페일오버</li>
+          <li>🟡 Offline 모드(Pure Wallet+) 지속 처리</li>
+          <li>🟡 Random Forest ML 장애 사전 예측</li>
+          <li>🟡 복구 후 자동 데이터 동기화</li>
+        </ul>
+        <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,.25); font-size:12px; opacity:.75;">
+          NSLab PureEdge · nslab.tech
+        </div>
+      </div>
+
+      <!-- 화살표 -->
+      <div style="display:flex; align-items:center; background:#eef2f7; padding:0 4px; z-index:1;">
+        <div style="font-size:28px; color:#1a3a5c; line-height:1;">&#8250;</div>
+      </div>
+
+      <!-- 타일 3: 관제 방식 -->
+      <div style="flex:1; background:linear-gradient(160deg,#1a7a4a,#145a38); color:#fff; border-radius:0 12px 12px 0; padding:32px 28px; position:relative;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.12em; opacity:.75; margin-bottom:10px;">STEP 03</div>
+        <div style="font-size:22px; font-weight:800; margin-bottom:18px; line-height:1.3;">관제 방식<br><span style="font-size:13px; font-weight:400; opacity:.85;">Management &amp; Control</span></div>
+        <ul style="list-style:none; font-size:13px; line-height:2.1; opacity:.95;">
+          <li>🟢 실시간 노드 상태 모니터링</li>
+          <li>🟢 AI 예측 → 사전 경보 발령</li>
+          <li>🟢 3단계 전환 자동 실행 (무인)</li>
+          <li>🟢 충돌 건만 관제 큐로 에스컬레이션</li>
+          <li>🟢 이력 학습으로 정확도 지속 향상</li>
+        </ul>
+        <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,.25); font-size:12px; opacity:.75;">
+          전환 빈도 61.4%↓ · 전환 시간 65.5%↓
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── TL;DR ── -->
+  <div class="tldr" id="tldr">
+    <div class="tldr-title">📌 TL;DR — 이 보고서의 핵심 결론 3가지</div>
+    <ul>
+      <li><strong>단일 외부 의존 구조가 원인:</strong> <abbr title="항공 IT 인프라 업체(Collins Aerospace/RTX 자회사)">ARINC</abbr> 통신망과 <abbr title="중국 정부 산하 항공 IT 독점 공기업">TravelSky</abbr> 발권 시스템이 동시에 마비되어 12시간 장애 발생. 자동 전환 체계가 없어 수기 수속으로만 대응했다.</li>
+      <li><strong>기술적 해법은 명확:</strong> NSLab Inc.의 <abbr title="AI 기반 블록체인 엣지 엔진 — 20~30ms 자동 페일오버">PureEdge</abbr>는 <abbr title="Random Forest 머신러닝 모델">AI 스케줄러</abbr>로 20~30ms 내 자동 전환하며, 전환 시간 65.5% 단축·전환 횟수 61.4% 감소를 실증했다.</li>
+      <li><strong>제도화가 남은 과제:</strong> <abbr title="단일 장애점 — Single Point of Failure">SPOF</abbr> 제거는 기술보다 공항공사·항공사 간 비용 분담 및 의무화 규정이 관건이다. 3단계 도입 로드맵과 구체적 비용·리스크를 7절에서 다룬다.</li>
+    </ul>
+    <div class="action">권고: 인천공항 → 단기 이중화 + PureEdge 파일럿 → 중장기 전 항공사 의무화</div>
+  </div>
+
+  <!-- ── 요약 대시보드 ── -->
+  <div class="grid-3" style="margin-bottom:40px; margin-top:8px;">
+    <div class="metric">
+      <div class="val">12h</div>
+      <div class="unit">장애 지속 시간</div>
+      <div class="label">04:30 → 17:00 (10월 30일)</div>
+    </div>
+    <div class="metric">
+      <div class="val">1,200명</div>
+      <div class="unit">피해 승객 (최대 동시)</div>
+      <div class="label">중국 3사 항공편 38편 지연</div>
+    </div>
+    <div class="metric">
+      <div class="val">2개</div>
+      <div class="unit">독립 장애 중첩 발생</div>
+      <div class="label">ARINC 통신망 + TravelSky 발권</div>
+    </div>
+  </div>
+
+  <!-- ──────────────── 1. 사고 개요 ──────────────── -->
+  <section id="overview">
+    <div class="section-title">
+      <div class="section-num">1</div>
+      <h2>2개 시스템 동시 마비 — 12시간 장애, 백업 유무가 피해를 갈랐다</h2>
+    </div>
+
+    <div class="card">
+      <h3>사고 경과 타임라인</h3>
+      <ul class="timeline">
+        <li>
+          <span class="time">04:30</span>
+          <strong>ARINC 글로벌 통신망 불안정 시작</strong> — T1·T2 합계 13개 항공사 카운터 통신 간헐적 단절. 대한항공 등 포함.
+        </li>
+        <li>
+          <span class="time">12:00</span>
+          <strong>TravelSky 발권 시스템 완전 정지</strong> — 중국동방·중국남방·에어차이나가 사용하는 TravelSky 장애. 일반 발권 사실상 중단, 수기 탑승수속 전환.
+        </li>
+        <li>
+          <span class="time">12:00~</span>
+          <strong>1,200명 대기 발생</strong> — 수기 처리 속도 한계로 출발 임박 승객 위주 제한 발권. 38편 지연 누적.
+        </li>
+        <li>
+          <span class="time">15:20</span>
+          <strong>ARINC 통신망 복구</strong> — 13개 항공사 통신 정상화. TravelSky는 여전히 불안정.
+        </li>
+        <li>
+          <span class="time">17:00</span>
+          <strong>전체 시스템 복구 완료</strong> — 발생 약 12시간 만에 정상화.
+        </li>
+      </ul>
+    </div>
+
+    <div class="grid-2">
+      <div class="box danger">
+        <strong>1차 장애: ARINC 통신망</strong>
+        미국 에어링크(Collins Aerospace/RTX)가 운영하는 공항 체크인 카운터 ↔ 항공사 발권 시스템 간 글로벌 통신망 장애. T1 8개사, T2 5개사에 영향.
+      </div>
+      <div class="box danger">
+        <strong>2차 장애: TravelSky 발권 시스템</strong>
+        중국 3사(중국동방·중국남방·에어차이나) 공용 발권 시스템 TravelSky 독자 장애. ARINC 복구 후에도 별도로 지속되어 피해 심화.
+      </div>
+    </div>
+
+    <div class="box info">
+      <strong>피해 격차의 원인</strong>
+      대한항공 등 국내 항공사는 자체 백업 체계를 갖춰 줄만 길어졌고 실제 지연은 최소화됐다. 반면 트래블스카이에 단독 의존한 중국 3사는 38편 지연 전량을 감당했다. <strong>백업 유무가 피해를 갈랐다.</strong>
+    </div>
+
+    <details>
+      <summary>🔍 장애 시스템 기술 배경 — ARINC / TravelSky / DCS 구조 상세</summary>
+      <div class="details-body">
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div>
+          <h4 style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;"><abbr title="Collins Aerospace(RTX 자회사) 운영 항공 IT 통신 인프라 업체">ARINC</abbr> (에어링크)</h4>
+          <ul style="font-size:14px; padding-left:18px; line-height:2.1; color:var(--muted);">
+            <li>Collins Aerospace(RTX 자회사)가 운영하는 항공 IT 통신 인프라 업체</li>
+            <li>공항 체크인 카운터 ↔ 항공사 <abbr title="Departure Control System — 출발관리시스템">DCS</abbr> 간 네트워크 제공</li>
+            <li>주요 제품: <strong><abbr title="공용 체크인 단말 시스템. cMUSE(클라우드)/vMUSE(가상화) 버전 있음">MUSE(cMUSE/vMUSE)</abbr></strong> — 히스로·인천 등 세계 주요 공항 다수 적용</li>
+            <li>경쟁사: <abbr title="Société Internationale de Télécommunications Aéronautiques — 항공 IT 글로벌 2위">SITA</abbr>(사이타) — 이번 사고에서 ARINC 단독 의존이 문제가 됐음</li>
+            <li>2025년 9월 MUSE 시스템이 랜섬웨어 공격을 받은 전례 있음</li>
+          </ul>
+        </div>
+        <div>
+          <h4 style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;"><abbr title="中国民航信息网络 — 중국 정부 산하 항공 IT 독점 공기업(홍콩 상장)">TravelSky</abbr></h4>
+          <ul style="font-size:14px; padding-left:18px; line-height:2.1; color:var(--muted);">
+            <li>중국 정부 산하 항공 IT 독점 공기업(홍콩 상장)</li>
+            <li>중국 항공사 전체의 예약·발권·체크인 데이터를 중앙 처리</li>
+            <li>중국동방·중국남방·에어차이나(3대 국영 항공사)의 공용 DCS로 기능</li>
+            <li>중국 이외 지역에서 장애 발생 시 실시간 통보 체계 미흡 (이번 사고에서 확인)</li>
+            <li>자체 백업 구성 여부가 비공개 — 이번 사고로 해외 터미널 취약성 드러남</li>
+          </ul>
+        </div>
+      </div>
+      <div class="box warn">
+        <strong>공항 체크인 시스템 의존 구조</strong>
+        공항 카운터 단말(ARINC/SITA 제공) → 글로벌 통신망 → 항공사 DCS(TravelSky 등) → 예약 원장(<abbr title="Global Distribution System — 글로벌 항공권 유통·예약 플랫폼">GDS</abbr>: Amadeus/Sabre/Travelport). 각 레이어가 다른 업체이며, 어느 한 레이어가 끊어지면 카운터 전체가 멈춘다.
+      </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ──────────────── 2. 기존 시스템 한계 ──────────────── -->
+  <section id="limits">
+    <div class="section-title">
+      <div class="section-num">2</div>
+      <h2>이중화 없는 외부 의존 구조 — 같은 패턴의 장애가 3년째 반복되고 있다</h2>
+    </div>
+
+    <div class="card">
+      <h3>왜 오프라인 발권이 대안이 될 수 없나?</h3>
+      <div class="prob-row">
+        <div class="prob-icon">🪑</div>
+        <div>
+          <h4>좌석·예약 동기화 불가</h4>
+          <p>예약 원본이 항공사 중앙 시스템에만 존재. 오프라인 처리 시 중복 배정·초과 판매 발생 위험. 당일 예약 변경·재발권·좌석 변경은 불가.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">🛂</div>
+        <div>
+          <h4>출입국·보안 심사 우회 불가</h4>
+          <p>탑승자 사전 확인(APISystem) 등 당국 서버의 실시간 "탑승 가능" 응답 필수. 시스템 우회 시 위법.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">🔄</div>
+        <div>
+          <h4>복구 후 데이터 충돌 (CAP 딜레마)</h4>
+          <p>분산 처리 중 같은 좌석 이중 배정·수하물 불일치 발생 가능. 항공 안전 기준상 <em>가용성보다 일관성</em>을 택해야 하므로 오프라인 처리 후 수동 검토 필수.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">💼</div>
+        <div>
+          <h4>투자·책임 주체 분리</h4>
+          <p>공용 카운터 통신망(공항↔에어링크 계약)과 발권 시스템(항공사 자체)이 별개. 장애 시 어느 쪽도 전체 백업에 단독 책임이 없는 구조.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>반복되는 단일 공급자 의존 장애 이력</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>일시</th><th>장애 원인</th><th>영향 공항·규모</th><th>교훈</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2024년 7월</td>
+              <td>MS·CrowdStrike 글로벌 IT 대란</td>
+              <td>인천공항: 에어프레미아·제주·이스타 등 101편 지연, 4편 결항</td>
+              <td>자체 클라우드 항공사는 무피해 → 백업 여부가 피해 결정</td>
+            </tr>
+            <tr>
+              <td>2025년 9월</td>
+              <td>에어링크 MUSE 시스템 랜섬웨어 공격</td>
+              <td>히스로·브뤼셀·베를린 — 수기 체크인, 지연·결항</td>
+              <td>BA는 자체 백업으로 운항 유지. 집중 리스크 대표 사례</td>
+            </tr>
+            <tr>
+              <td><strong>2026년 10월</strong></td>
+              <td><strong>ARINC 통신망 + TravelSky 중첩 장애</strong></td>
+              <td><strong>인천공항: 38편 지연, 1,200명 대기, 12시간 복구</strong></td>
+              <td><strong>이중 공급자 의존 + 자동 전환 부재가 피해 극대화</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box warn">
+        <strong>패턴 인식</strong>
+        3건 모두 <em>단일 외부 공급자 시스템 의존 + 자동 페일오버 부재</em>라는 동일한 구조적 취약점에서 비롯됐다. 이는 기술적 개선이 아닌 아키텍처 수준의 문제다.
+      </div>
+    </div>
+
+    <details>
+      <summary>📖 <abbr title="Consistency·Availability·Partition Tolerance — 분산 시스템 설계 원리">CAP 정리</abbr> 심화: 항공 DCS가 일관성을 선택할 수밖에 없는 3가지 이유</summary>
+      <div class="details-body">
+      <p style="font-size:14px; margin-bottom:16px;">분산 시스템은 네트워크 분단(Partition) 발생 시 <strong>가용성(Availability)</strong>과 <strong>일관성(Consistency)</strong> 중 하나를 포기해야 한다(<abbr title="Brewer's CAP theorem — 분산 시스템은 CA·CP·AP 중 두 가지만 동시에 보장 가능">CAP 정리</abbr>). 항공 DCS는 아래 이유로 반드시 <strong>일관성</strong>을 선택해야 한다.</p>
+      <div class="step-grid">
+        <div class="step">
+          <div class="step-num">이유 1</div>
+          <h4>좌석 중복 배정 → 안전·법적 책임</h4>
+          <p>두 카운터가 동시에 같은 좌석을 배정하면 오버부킹이 발생한다. 항공기 무게중심 계산 오류로 이어질 수 있어 안전 문제다.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">이유 2</div>
+          <h4>수하물-탑승객 불일치 → 보안 규정</h4>
+          <p><abbr title="국제민간항공기구 — 항공보안 국제 표준 제정">ICAO</abbr> Annex 17 기준, 탑승하지 않은 승객의 수하물은 반드시 하기해야 한다. 오프라인 처리 중 불일치 발생 시 전 항공편 지연.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">이유 3</div>
+          <h4>API 출입국 심사 실시간 의무</h4>
+          <p>한국 출입국관리법상 탑승자 사전확인(<abbr title="Advance Passenger Information — 탑승자 사전 정보 당국 전송 의무">API</abbr>) — 당국 서버의 실시간 "탑승 가능" 응답 없이 탑승 처리 시 위법.</p>
+        </div>
+      </div>
+      <div class="callout insight" style="margin-top:16px;">
+        <div class="callout-title">💡 타 산업과의 차이</div>
+        인터넷 쇼핑몰은 가용성을 선택해 "재고 임시 할당"을 허용한다. 항공은 안전·보안·법규로 인해 이 선택이 불가능하다. 따라서 <strong>"오프라인을 더 잘 만드는 것"이 아니라 "오프라인이 필요 없도록 이중화하는 것"</strong>이 유일한 해법이다.
+      </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ──────────────── 3. 핵심 문제 일반화 ──────────────── -->
+  <section id="core">
+    <div class="section-title">
+      <div class="section-num">3</div>
+      <h2>SPOF + 수동 전환 + 취약한 오프라인 — 공항 IT의 3중 구조 결함</h2>
+    </div>
+
+    <div class="box danger" style="font-size:16px; padding:24px 28px;">
+      <strong style="font-size:13px;">핵심 문제 정의</strong>
+      <span style="font-size:16px; line-height:1.7;">
+        미션 크리티컬 인프라가 <strong>단일 외부 공급자 네트워크/시스템에 단독 의존</strong>하면서, 장애 감지–전환–복구를 <strong>자동화하지 않아</strong> 수동 대응의 처리 한계가 서비스 중단으로 직결된다.
+      </span>
+    </div>
+
+    <div class="card">
+      <h3>일반화: 3계층 취약 구조</h3>
+      <div class="step-grid">
+        <div class="step">
+          <div class="step-num">계층 1</div>
+          <h4>단일 장애점 (<abbr title="Single Point of Failure — 이 구성요소 하나가 고장나면 전체가 멈추는 지점">SPOF</abbr>)</h4>
+          <p><abbr title="항공 IT 통신 인프라 업체">ARINC</abbr>·<abbr title="중국 정부 산하 항공 IT 독점 공기업">TravelSky</abbr> 등 단일 외부 시스템에 업무 전체가 묶여 있어, 해당 시스템 장애 = 전체 서비스 중단.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">계층 2</div>
+          <h4>자동 전환 부재</h4>
+          <p>장애 감지→백업 전환이 수동. 감지 지연 + 담당자 대응 시간 + 수동 전환 절차로 수시간 공백 발생.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">계층 3</div>
+          <h4>오프라인 처리 능력 부족</h4>
+          <p>백업 전환 후에도 로컬에서 처리 가능한 업무 범위가 좁고, 복구 후 데이터 동기화 자동화 없음.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>일반화된 문제: 어디서든 반복된다</h3>
+      <p style="margin-bottom:14px; font-size:14px;">이 구조는 항공 산업에 국한되지 않는다. 동일한 패턴이 아래 분야에서 반복적으로 나타난다.</p>
+      <div>
+        <span class="tag">공항 체크인 시스템</span>
+        <span class="tag">IoT 엣지 컴퓨팅</span>
+        <span class="tag">금융 결제 게이트웨이</span>
+        <span class="tag">산업용 제어 시스템 (ICS)</span>
+        <span class="tag">스마트 공장 MES</span>
+        <span class="tag">병원 의료 정보 시스템</span>
+        <span class="tag">물류 창고 관리 시스템</span>
+      </div>
+      <div class="box ok" style="margin-top:16px;">
+        <strong>일반화된 요구사항</strong>
+        ① 다중 공급자·경로 이중화 &nbsp;|&nbsp; ② 장애 자동 감지 및 즉각 전환 &nbsp;|&nbsp; ③ 오프라인 모드 운영 능력 &nbsp;|&nbsp; ④ 복구 후 자동 동기화 및 충돌 해소
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>타 산업의 선행 해결 사례</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>산업</th><th>문제</th><th>해결 방식</th><th>항공에 적용 가능한 시사점</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>금융 (카드사·은행)</strong></td>
+              <td>단일 VAN망 장애 시 전국 결제 중단</td>
+              <td>금융위원회 규정으로 이중 VAN 의무화. 주 망 장애 시 자동 전환(Active-Standby)</td>
+              <td>규제 의무화 + 자동 전환이 병행될 때 실효성 있음</td>
+            </tr>
+            <tr>
+              <td><strong>통신사</strong></td>
+              <td>기지국 단일 코어망 의존 시 지역 전체 불통</td>
+              <td>다중 코어망(Primary·Secondary·Tertiary) + 실시간 트래픽 리밸런싱</td>
+              <td>경로 다중화 + AI 트래픽 분산이 다운타임을 수ms 이내로 제어</td>
+            </tr>
+            <tr>
+              <td><strong>클라우드 (AWS·Azure)</strong></td>
+              <td>AZ(가용영역) 장애 시 서비스 중단</td>
+              <td>Multi-AZ 자동 페일오버. RTO(복구목표시간) &lt;60초 SLA</td>
+              <td>자동 페일오버 SLA를 계약에 명문화 → 책임 소재 명확화</td>
+            </tr>
+            <tr>
+              <td><strong>항공 (일부 선진사)</strong></td>
+              <td>GDS·DCS 장애 시 체크인 중단</td>
+              <td>British Airways: 자체 DCS 백업 보유 → 2025년 ARINC 랜섬웨어 시 운항 유지</td>
+              <td><strong>자체 백업 DCS + 로컬 캐시가 핵심. 인천공항 중국 3사에 부재.</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box info">
+        <strong>공통 교훈</strong>
+        어떤 산업이든 해결 패턴은 동일하다: <strong>① 다중 경로 구성 → ② 자동 감지·전환 → ③ 오프라인 처리 가능 범위 최대화 → ④ 복구 후 자동 병합</strong>. 규제 의무화가 선행된 산업(금융·통신)은 이미 해결했고, 항공은 뒤처져 있다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────── 4. PureEdge 해결 방안 ──────────────── -->
+  <section id="pureedge">
+    <div class="section-title">
+      <div class="section-num">4</div>
+      <h2>PureEdge — 20ms 자동 전환으로 수기 수속 없이 장애를 투명하게 넘긴다 <span style="font-size:14px; font-weight:500; color:var(--muted);">NSLab Inc. 자체 개발</span></h2>
+    </div>
+
+    <div class="card">
+      <h3>개발사 — NSLab Inc.</h3>
+      <div class="grid-2">
+        <div>
+          <h4 style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">회사 개요</h4>
+          <ul style="font-size:14px; padding-left:18px; line-height:2.2;">
+            <li><strong>정식 명칭:</strong> NSLab Inc. (엔에스랩)</li>
+            <li><strong>대표:</strong> 김동성 (Kim Dong-Seong)</li>
+            <li><strong>본사:</strong> 경상북도 구미시 / 서울 강남구 지사</li>
+            <li><strong>학술 연계:</strong> 금오공과대학교 ICT융합연구센터<br>(IITP 지원 지역지능화 혁신인재양성 사업 수행)</li>
+            <li><strong>연구 분야:</strong> 블록체인 · 메타버스·디지털트윈 · 국방 소프트웨어 · AI 분산 시스템</li>
+          </ul>
+        </div>
+        <div>
+          <h4 style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">Pure 제품 생태계</h4>
+          <ul style="font-size:14px; padding-left:18px; line-height:2.2;">
+            <li><strong>Pure Chain</strong> — 하이브리드 블록체인 신뢰 인프라 (IPFS 원장)</li>
+            <li><strong>Pure Edge</strong> — AI 기반 엣지 페일오버 관리 <span class="tag" style="font-size:11px;">핵심 제품</span></li>
+            <li><strong>Pure Wallet+</strong> — 오프라인 디지털 자산·트랜잭션 처리</li>
+            <li><strong>Pure Certificate</strong> — 블록체인 기반 디지털 증명서</li>
+            <li><strong>Pure Twin</strong> — 헬스케어 디지털트윈</li>
+            <li><strong>Pure Security / Pure Voting / Pure Contract</strong> 등</li>
+          </ul>
+        </div>
+      </div>
+      <div class="box info" style="margin-top:14px;">
+        <strong>국방·통신 기술 기반</strong>
+        NSLab은 해군 전투체계, DDS(데이터 분산 서비스), MMS(산업 메시지 표준), K-MOSA 등 국방 분야 분산 실시간 시스템 개발 경험을 보유. PureEdge의 고신뢰·저지연 페일오버 기술은 이 국방 시스템 연구에서 파생됐다.
+      </div>
+    </div>
+
+    <div class="box info">
+      <strong>PureEdge란? (NSLab 개발 제품)</strong>
+      NSLab Inc.가 개발한 <strong>"오프라인 환경을 위한 AI 기반 블록체인 엣지 엔진"</strong>. Random Forest 분류기 기반 경량 ML 모델로 장애를 사전 예측하고, Primary → Backup(IPFS/Pure Chain) → Offline(Pure Wallet+)의 3단계 자동 전환 및 복구 동기화를 구현한다. 금융기관·데이터센터·국가 인프라 등 격리 환경에 배치 가능한 모듈형 구조로, Pure 제품 생태계의 핵심 인프라 레이어.
+    </div>
+
+    <div class="grid-3" style="margin-bottom:20px;">
+      <div class="metric">
+        <div class="val">20–30ms</div>
+        <div class="unit">페일오버 전환 시간</div>
+        <div class="label">실측 기준 (공식 사이트)</div>
+      </div>
+      <div class="metric">
+        <div class="val">65.5%</div>
+        <div class="unit">총 전환 시간 감소</div>
+        <div class="label">Round Robin 대비</div>
+      </div>
+      <div class="metric">
+        <div class="val">61.4%</div>
+        <div class="unit">전환 횟수 감소</div>
+        <div class="label">Round Robin 대비</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>PureEdge 4단계 작동 원리</h3>
+      <div class="step-grid">
+        <div class="step" style="margin-top:16px;">
+          <div class="step-num" style="background:var(--ok);">1단계</div>
+          <h4>감시 (Monitor)</h4>
+          <p>엣지 노드 상태·에너지·처리 부하·네트워크 지연을 실시간 수집. IoT 디바이스 및 에이전트가 주기적 상태 보고.</p>
+        </div>
+        <div class="step" style="margin-top:16px;">
+          <div class="step-num" style="background:var(--accent);">2단계</div>
+          <h4>예측 (Predict)</h4>
+          <p>Random Forest 분류기가 수집 데이터를 분석해 장애 발생 가능성 및 최적 경로를 예측. 반응형이 아닌 예방형 전환.</p>
+        </div>
+        <div class="step" style="margin-top:16px;">
+          <div class="step-num" style="background:var(--warn);">3단계</div>
+          <h4>경로 선택 (Route)</h4>
+          <p>Primary 유지 / Backup(IPFS) 전환 / Offline(Pure Wallet+) 전환 중 최적 결정을 20~30ms 내 자동 실행.</p>
+        </div>
+        <div class="step" style="margin-top:16px;">
+          <div class="step-num" style="background:var(--primary);">4단계</div>
+          <h4>복구 (Recover)</h4>
+          <p>Primary 라인 복구 감지 시 오프라인 기록 자동 동기화. 충돌 트랜잭션만 예외 처리 큐로 분리.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>3단계 자동 페일오버 아키텍처</h3>
+      <div style="background:var(--gray-bg); border-radius:8px; padding:24px; font-family:monospace; font-size:13px; line-height:2;">
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+          <div style="background:var(--ok); color:#fff; padding:10px 18px; border-radius:8px; text-align:center;">
+            <div style="font-size:11px; opacity:.8;">PRIMARY</div>
+            <div style="font-weight:700;">Edge Server</div>
+            <div style="font-size:11px; opacity:.8;">실시간 처리</div>
+          </div>
+          <div style="font-size:20px; color:var(--accent);">→</div>
+          <div style="background:var(--accent); color:#fff; padding:10px 18px; border-radius:8px; text-align:center;">
+            <div style="font-size:11px; opacity:.8;">BACKUP</div>
+            <div style="font-weight:700;">Backup Server</div>
+            <div style="font-size:11px; opacity:.8;">IPFS 블록체인 저장</div>
+          </div>
+          <div style="font-size:20px; color:var(--accent);">→</div>
+          <div style="background:var(--warn); color:#fff; padding:10px 18px; border-radius:8px; text-align:center;">
+            <div style="font-size:11px; opacity:.8;">OFFLINE</div>
+            <div style="font-weight:700;">Local Storage</div>
+            <div style="font-size:11px; opacity:.8;">Pure Wallet 오프라인 처리</div>
+          </div>
+          <div style="font-size:20px; color:var(--ok);">↺</div>
+          <div style="background:var(--primary); color:#fff; padding:10px 18px; border-radius:8px; text-align:center;">
+            <div style="font-size:11px; opacity:.8;">RESTORE</div>
+            <div style="font-weight:700;">자동 동기화</div>
+            <div style="font-size:11px; opacity:.8;">복구 후 데이터 병합</div>
+          </div>
+        </div>
+        <div style="margin-top:16px; color:var(--muted); font-family:sans-serif; font-size:12px;">
+          ▲ AI 스케줄러가 각 단계 전환 시점을 실시간으로 결정. 사람의 개입 없이 ms 단위 전환.
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>AI 기반 의사결정 메커니즘</h3>
+        <ul style="font-size:14px; padding-left:18px; line-height:2;">
+          <li><strong>Random Forest 분류기</strong> 기반 경량 모델 — 저사양 엣지 디바이스에서도 구동</li>
+          <li>에너지 레벨·처리 부하·장애 이력을 실시간 수집·분석</li>
+          <li>ML 모델이 잠재 장애를 사전 예측 (반응형이 아닌 예측형)</li>
+          <li>Primary 유지 / Backup 전환 / Offline 전환 3가지 결정을 자동 실행</li>
+          <li>과거 실패 패턴에서 지속 학습 → 점진적 정확도 향상</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>연동 제품 생태계</h3>
+        <ul style="font-size:14px; padding-left:18px; line-height:2;">
+          <li><strong>Pure Edge</strong> — AI 스케줄링 엔진·페일오버 컨트롤러</li>
+          <li><strong>Pure Chain</strong> — Backup 경로의 IPFS 기반 분산 원장</li>
+          <li><strong>Pure Wallet+</strong> — Offline 모드 로컬 트랜잭션 처리 경로</li>
+          <li>3개 제품이 연계하여 Primary→Backup→Offline 3단계 커버</li>
+          <li>모듈형 구조로 기존 시스템에 최소 변경으로 통합 가능</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>AI 모델 상세 — Random Forest 분류기 동작 원리</h3>
+      <div class="grid-2">
+        <div>
+          <h4 style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">학습 데이터 (입력 피처)</h4>
+          <ul style="font-size:14px; padding-left:18px; line-height:2.2;">
+            <li><strong>에너지 레벨</strong> — 각 엣지 노드의 잔여 배터리/전원 상태</li>
+            <li><strong>처리 부하</strong> — CPU·메모리·네트워크 I/O 실시간 수치</li>
+            <li><strong>장애 이력</strong> — 과거 페일오버 발생 시점·원인·지속 시간 패턴</li>
+            <li><strong>네트워크 지연</strong> — Primary↔Backup 간 RTT(Round Trip Time)</li>
+            <li><strong>트랜잭션 성공률</strong> — 최근 N분 윈도우 내 요청 처리 성공/실패 비율</li>
+          </ul>
+        </div>
+        <div>
+          <h4 style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">출력 결정 (3가지 액션)</h4>
+          <div class="box ok" style="margin-bottom:10px; padding:12px 16px;">
+            <strong style="font-size:12px; margin-bottom:4px;">PRIMARY 유지</strong>
+            현재 노드 상태 정상. 전환 없이 처리 지속.
+          </div>
+          <div class="box warn" style="margin-bottom:10px; padding:12px 16px;">
+            <strong style="font-size:12px; margin-bottom:4px;">BACKUP 전환</strong>
+            장애 임박 예측 또는 감지. IPFS Backup 서버로 20~30ms 내 전환.
+          </div>
+          <div class="box danger" style="padding:12px 16px;">
+            <strong style="font-size:12px; margin-bottom:4px;">OFFLINE 전환</strong>
+            Backup도 불가. Pure Wallet+ 로컬 처리 모드 진입.
+          </div>
+        </div>
+      </div>
+      <div class="box info" style="margin-top:14px;">
+        <strong>Random Forest의 장점</strong>
+        단일 결정 트리 대비 과적합 방지, 노이즈에 강건. 경량 모델로 저사양 엣지 디바이스(IoT 센서급)에서도 실시간 추론 가능. Deep Learning 대비 학습 데이터 요구량 적고 설명 가능성(explainability) 높음 — 페일오버 결정 근거를 로그로 확인 가능.
+      </div>
+    </div>
+
+    <details>
+      <summary>🔗 <abbr title="InterPlanetary File System — 중앙 서버 없는 분산 파일 시스템">IPFS</abbr> + 블록체인 저장 기술 상세</summary>
+      <div class="details-body">
+      <ul style="font-size:14px; padding-left:18px; line-height:2.2;">
+        <li><strong><abbr title="InterPlanetary File System — 콘텐츠 해시 기반 주소 체계로 데이터 무결성 자동 검증">IPFS</abbr></strong> — 중앙 서버 없는 분산 파일 시스템. 데이터 무결성 자동 검증.</li>
+        <li><strong>변조 불가</strong> — 저장된 체크인 기록은 블록체인 원장에 연결돼 사후 수정·삭제 불가. 분쟁 발생 시 법적 증거력 확보.</li>
+        <li><strong>네트워크 복구 후 자동 병합</strong> — IPFS 노드가 온라인 복귀 시 P2P 방식으로 메인 네트워크와 자동 동기화. 중앙 동기화 서버 불필요.</li>
+        <li><strong>Pure Chain과의 연동</strong> — Pure Chain이 IPFS 위에서 항공 트랜잭션 전용 원장을 운영. 체크인 기록, 좌석 배정 스냅샷, 수하물 매칭 이력 저장.</li>
+        <li><strong>Pure Wallet+</strong> — 오프라인 상태에서 로컬에 트랜잭션을 서명·저장. 복구 후 Pure Chain에 제출하면 자동 검증·병합.</li>
+      </ul>
+      <div class="callout insight" style="margin-top:14px;">
+        <div class="callout-title">💡 항공 적용 시 의미</div>
+        TravelSky 장애 중에도 Pure Wallet+가 승객 체크인 기록을 로컬에 블록체인 서명으로 저장 → 복구 후 TravelSky와 자동 병합. 기존 수기 수속의 "나중에 수동 재입력" 과정이 완전 자동화된다.
+      </div>
+      </div>
+    </details>
+
+    <div class="card">
+      <h3>인천공항 사례 대응 시나리오</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>장애 상황</th><th>PureEdge 대응</th><th>기대 효과</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ARINC 통신망 장애 감지</td>
+              <td>AI가 20~30ms 내 백업 통신 경로(SITA 등)로 자동 전환. Pure Chain에 전환 기록 저장.</td>
+              <td>4:30 장애 발생 직후 서비스 자동 유지 — 12시간 공백 없음</td>
+            </tr>
+            <tr>
+              <td>TravelSky 발권 시스템 장애</td>
+              <td>Backup 경로 실패 감지 시 Pure Wallet+로 Offline 전환. 사전 수신 승객 명단 스냅샷 기반 체크인 처리.</td>
+              <td>수기 발권 의존 제거. 처리 속도 정상 수준 유지.</td>
+            </tr>
+            <tr>
+              <td>양 시스템 동시 불가</td>
+              <td>Local Storage에 검증 가능 기록 보관. 오프라인 트랜잭션 계속 처리.</td>
+              <td>38편 지연 및 1,200명 대기 상황 방지</td>
+            </tr>
+            <tr>
+              <td>ARINC 복구 (15:20)</td>
+              <td>자동 재동기화 실행. 충돌 건만 사람 검토 큐로 분리. 정상 연결 전환.</td>
+              <td>복구 후 수동 확인 부담 최소화</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────── 5. 성능 비교 ──────────────── -->
+  <section id="performance">
+    <div class="section-title">
+      <div class="section-num">5</div>
+      <h2>PureEdge, 라운드로빈 대비 전환 횟수 61.4% 줄이고 처리 성공률 최대 13%p 향상</h2>
+    </div>
+
+    <div class="card">
+      <h3>총 전환 시간 및 전환 빈도 비교</h3>
+      <div style="margin-bottom:20px;">
+        <div class="bar-row">
+          <div class="bar-label">Round Robin</div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width:100%; background:#c0392b;">
+              <span>총 4,139.76ms / 611회</span>
+            </div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Energy-Aware</div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width:100%; background:#d35400;">
+              <span>총 4,149.36ms / 642회</span>
+            </div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">PureEdge AI</div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width:34.6%; background:#1a7a4a;">
+              <span>총 1,430.41ms / 236회</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="box ok">
+        <strong>핵심 지표 (논문 시뮬레이션 + NSLab 공식 사이트 실측)</strong>
+        PureEdge AI는 기존 방식 대비 <strong>총 전환 시간 65.5% 단축</strong>, <strong>전환 횟수 61.4% 감소</strong>, <strong>실측 페일오버 전환 시간 20~30ms</strong>. 불필요한 전환을 AI가 사전 억제한 결과.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>요청 처리 성공률 비교 (%)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>방식</th>
+              <th style="text-align:right">Primary 성공률</th>
+              <th style="text-align:right">Backup 성공률</th>
+              <th style="text-align:right">Offline 처리율</th>
+              <th>비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Round Robin</td>
+              <td class="num">38.9%</td>
+              <td class="num">38.3%</td>
+              <td class="num">22.8%</td>
+              <td>균등 분배, 적응 없음</td>
+            </tr>
+            <tr>
+              <td>Energy-Aware</td>
+              <td class="num">30.2%</td>
+              <td class="num">32.3%</td>
+              <td class="num">37.5%</td>
+              <td>오프라인 의존 과다</td>
+            </tr>
+            <tr>
+              <td><strong>PureEdge AI</strong></td>
+              <td class="num">35.2%</td>
+              <td class="num hi">39.9%</td>
+              <td class="num">24.9%</td>
+              <td class="hi">Backup 전환 성공률 최고</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="source-note">출처: NSLab Inc. 학술 논문 Table I — Success Rate of Request Processing (%)</p>
+      <p style="font-size:13px; color:var(--muted); margin-top:4px;">PureEdge AI는 Backup 전환 성공률(39.9%)이 가장 높고, Offline 의존율은 Energy-Aware보다 낮아 실질 서비스 가용성이 가장 우수.</p>
+    </div>
+
+    <div class="card">
+      <h3>에너지 효율 및 부하 분산</h3>
+      <ul style="font-size:14px; padding-left:18px; line-height:2.1;">
+        <li>Round Robin: 에너지 편중 — 일부 노드 조기 소진</li>
+        <li>Energy-Aware: Primary 에너지 절약에 집중 → Backup·Offline 의존 과다</li>
+        <li><strong>PureEdge AI: Primary·Backup·Offline 에너지 균형 분산 → 시스템 수명 연장 + 페일오버 안정성 유지</strong></li>
+      </ul>
+      <div class="tbl-wrap" style="margin-top:16px;">
+        <table>
+          <thead>
+            <tr><th>노드 유형</th><th>Round Robin<br>잔여 에너지</th><th>Energy-Aware<br>잔여 에너지</th><th>PureEdge AI<br>잔여 에너지</th><th>비고</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Primary</td>
+              <td>~1.25 J</td>
+              <td>~1.75 J (최고)</td>
+              <td>~1.25 J</td>
+              <td>Energy-Aware가 Primary 에너지 아낌 — 그러나 Backup 과부하 초래</td>
+            </tr>
+            <tr>
+              <td>Backup</td>
+              <td>~1.0 J</td>
+              <td>~1.0 J</td>
+              <td>~1.0 J</td>
+              <td>세 방식 유사 — Backup 사용 빈도 차이가 큼</td>
+            </tr>
+            <tr>
+              <td>Offline</td>
+              <td>~0.5 J</td>
+              <td class="hi">~0.25 J (최저)</td>
+              <td>~0.5 J</td>
+              <td>Energy-Aware의 Offline 과의존이 에너지 소진 유발</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin-top:10px;">수치는 논문 Figure 4 그래프에서 근사 추정. PureEdge AI는 세 노드 타입 전체에서 균형 있는 에너지 소비 패턴을 보여 시스템 전체 수명을 극대화한다.</p>
+    </div>
+
+    <div class="card">
+      <h3>페일오버 시간 분산 분석 — 예측 가능성의 중요성</h3>
+      <p style="font-size:14px; margin-bottom:16px;">논문 Figure 3 박스플롯에서 드러난 핵심 차이는 단순 평균값이 아닌 <strong>분산(variance)</strong>이다.</p>
+      <div class="grid-2">
+        <div class="box danger">
+          <strong>Round Robin / Energy-Aware — 높은 분산</strong>
+          페일오버 시간의 범위(min~max)가 넓다. 최악의 경우 10ms 이상 소요. 서비스 품질이 <strong>예측 불가</strong>하며, 하드 리얼타임 요건이 있는 시스템에서 SLA 위반 위험.
+        </div>
+        <div class="box ok">
+          <strong>PureEdge AI — 낮은 분산 + 낮은 중앙값</strong>
+          페일오버 시간이 좁은 범위에 집중. 중앙값도 낮고 이상치(outlier)도 적다. <strong>예측 가능한 성능</strong>이 보장 — 항공 체크인처럼 "몇 초 안에 반응이 와야 하는" 시스템에 적합.
+        </div>
+      </div>
+      <div class="box info" style="margin-top:4px;">
+        <strong>CDF(누적 분포 함수) 분석 결과 (논문 Figure 5)</strong>
+        PureEdge AI의 CDF 곡선이 다른 두 방식보다 왼쪽(낮은 전환 시간 방향)에 위치. 동일한 전환 시간 임계값(예: 6ms) 기준으로 PureEdge AI의 누적 처리율이 Round Robin·Energy-Aware보다 현저히 높다. 즉 <strong>"더 빠르게, 더 자주" 전환을 완료</strong>한다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────── 6. 적용 제안 ──────────────── -->
+  <section id="proposal">
+    <div class="section-title">
+      <div class="section-num">6</div>
+      <h2>단계별 PureEdge 도입으로 인천공항 장애 재발 원천 차단</h2>
+    </div>
+
+    <div class="card">
+      <h3>인천공항 체크인 시스템에 PureEdge 적용 시 개선 포인트</h3>
+      <div class="prob-row">
+        <div class="prob-icon">🔗</div>
+        <div>
+          <h4>통신망 다중화 + 자동 전환</h4>
+          <p>ARINC 장애 시 AI가 SITA 등 대체 통신 경로로 자동 전환. 수동 감지·신고 없이 ms 단위 대응. 이번 사고의 4시간 30분~12시간 공백 구간을 대폭 축소.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">💾</div>
+        <div>
+          <h4>로컬 백업 자동 처리 (Pure Wallet)</h4>
+          <p>TravelSky 장애 시에도 사전 수신한 승객 명단 스냅샷으로 체크인 자동 처리. IPFS 블록체인 저장으로 데이터 무결성 보장. 수기 발권 의존 제거.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">🔄</div>
+        <div>
+          <h4>복구 후 자동 동기화 및 충돌 해소</h4>
+          <p>통신 복구 후 오프라인 처리 기록 자동 병합. 충돌(이중 배정 등) 건만 사람이 검토하는 예외 처리 큐 분리. 현재 100% 수동 검토 부담 제거.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">🤖</div>
+        <div>
+          <h4>AI 예측형 장애 사전 감지</h4>
+          <p>ML 모델이 에너지·부하·과거 실패 패턴을 분석해 장애를 사전 예측. 단순 반응형이 아닌 예방형 전환으로 실질 서비스 중단 시간 최소화.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>단계별 도입 로드맵</h3>
+      <div class="step-grid">
+        <div class="step">
+          <div class="step-num">1단계</div>
+          <h4>모니터링 계층 구축</h4>
+          <p>ARINC·TravelSky 상태 실시간 수집 에이전트 배포. 기존 인프라 무변경으로 가시성부터 확보.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2단계</div>
+          <h4>AI 스케줄러 통합</h4>
+          <p>PureEdge AI 스케줄러로 Primary→Backup 자동 전환 파일럿. 중국 3사 등 취약 항공사 우선 적용.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3단계</div>
+          <h4>오프라인 처리 + 동기화</h4>
+          <p>Pure Wallet 로컬 처리 및 IPFS 동기화 전면 도입. 완전 자율 3단계 페일오버 체계 완성.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="box ok">
+      <strong>기대 효과 요약</strong>
+      서비스 중단 시간: 12시간 → 수분 내 전환 | 수기 수속 의존: 제거 | 복구 후 동기화: 자동화 | 보안: IPFS 블록체인 기반 데이터 무결성 보장 | 미래 확장: 강화학습(RL) 통합으로 자가 진화하는 페일오버 시스템
+    </div>
+
+  </section>
+
+  <!-- ──────────────── 7. 비용편익·제도화·리스크 ──────────────── -->
+  <section id="biz">
+    <div class="section-title">
+      <div class="section-num">7</div>
+      <h2>3단계 도입 비용 추정 · 규제 제도화 · 리스크 대응 방안</h2>
+    </div>
+
+    <div class="card">
+      <h3>비용 대비 편익 추정 프레임워크</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>항목</th><th>현 체계 (장애 발생 시)</th><th>PureEdge 도입 후</th><th>개선 효과</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>서비스 중단 시간</strong></td>
+              <td>평균 12시간 (이번 사고 기준)</td>
+              <td>20~30ms 자동 전환 → 사실상 0</td>
+              <td class="hi">99.9%+ 가용성 달성</td>
+            </tr>
+            <tr>
+              <td><strong>운영 인력 부담</strong></td>
+              <td>장애 시 현장 50~60명 추가 투입, 수기 수속 처리</td>
+              <td>자동 전환 후 모니터링만 필요. 충돌 건만 소수 검토</td>
+              <td class="hi">비상 운영 인력 비용 대폭 절감</td>
+            </tr>
+            <tr>
+              <td><strong>항공사 보상 비용</strong></td>
+              <td>38편 지연 → 승객 보상·항공편 재편성 비용 발생</td>
+              <td>지연 자체가 발생하지 않으므로 보상 사유 없음</td>
+              <td class="hi">보상 비용 제거</td>
+            </tr>
+            <tr>
+              <td><strong>공항 브랜드 가치</strong></td>
+              <td>국내외 언론 보도, 인천공항 신뢰도 하락</td>
+              <td>장애 無 → 글로벌 허브 신뢰도 유지</td>
+              <td class="hi">정성적 브랜드 손실 방지</td>
+            </tr>
+            <tr>
+              <td><strong>도입 비용</strong></td>
+              <td>—</td>
+              <td>PureEdge 엣지 서버 + AI 스케줄러 라이선스 + 통합 비용</td>
+              <td>1회 장애 비용 대비 ROI 산출 필요 (별도 PoC 기반 견적)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box ok" style="margin-top:14px;">
+        <strong>비용 관점 핵심</strong>
+        단 1회 12시간 장애(승객 1,200명, 38편 지연)로 발생하는 보상·운영·브랜드 비용은 PureEdge 도입 비용을 크게 상회할 가능성이 높다. 인천공항의 연간 국제선 여객 약 7,000만 명 규모를 감안하면, 가용성 저하의 경제적 리스크는 매우 크다.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>제도화 방향 — 공항 의무화 검토</h3>
+      <div class="prob-row">
+        <div class="prob-icon">📋</div>
+        <div>
+          <h4>통신망 이중화 의무화</h4>
+          <p>인천공항공사·국토교통부 차원에서 공항 입점 항공사에 대해 ARINC·SITA 등 최소 2개 이상 통신망 사용을 의무화하거나 권고. 금융위원회의 VAN 이중화 의무화 규정을 벤치마킹.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">💰</div>
+        <div>
+          <h4>이중화 비용 분담 협약</h4>
+          <p>현재 투자 주체(공항 vs 항공사)가 분리돼 있어 이중화 유인이 낮다. 이번 사고를 계기로 공항공사·항공사·통신망 업체 3자 비용 분담 협약 체결 방안 검토 필요.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">🔔</div>
+        <div>
+          <h4>외부 시스템 장애 실시간 통보 의무</h4>
+          <p>이번 사고에서 공항공사가 에어링크로부터 장애 원인을 통보받지 못했다. 해외 통신망 업체의 장애 발생 시 공항공사에 30분 이내 통보를 계약 의무 조항으로 명문화해야 한다.</p>
+        </div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-icon">🌐</div>
+        <div>
+          <h4>IATA/ICAO 표준화 참여</h4>
+          <p>국제항공운송협회(IATA)의 DCS 이중화 가이드라인 제정 논의에 한국 공항공사·항공사가 참여하여 글로벌 기준 형성에 기여. PureEdge 솔루션을 글로벌 레퍼런스로 제시 가능.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>도입 리스크 및 대응 방안</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>리스크</th><th>발생 가능성</th><th>영향도</th><th>대응 방안</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>기존 ARINC 계약 잠금(Lock-in)</td>
+              <td>높음</td>
+              <td>중간</td>
+              <td>계약 갱신 시 이중화 조항 추가, PureEdge를 ARINC 위 레이어로 구성해 계약 충돌 최소화</td>
+            </tr>
+            <tr>
+              <td>AI 오판에 의한 불필요 전환</td>
+              <td>낮음</td>
+              <td>중간</td>
+              <td>전환 임계값 조정 가능. 초기 파일럿 단계에서 사람 확인 병행. 이력 학습으로 오판율 감소</td>
+            </tr>
+            <tr>
+              <td>오프라인 처리 범위의 법적 한계</td>
+              <td>중간</td>
+              <td>높음</td>
+              <td>Pure Wallet+의 처리 범위를 법적으로 허용된 범위(기존 예약 체크인)로 한정. API 심사는 별도 채널 유지</td>
+            </tr>
+            <tr>
+              <td>항공사 간 시스템 이질성</td>
+              <td>높음</td>
+              <td>중간</td>
+              <td>PureEdge의 모듈형 구조 활용. 항공사별 DCS에 맞는 어댑터 레이어 구현</td>
+            </tr>
+            <tr>
+              <td>블록체인 데이터의 항공 당국 인정</td>
+              <td>중간</td>
+              <td>높음</td>
+              <td>IPFS 기록의 법적 증거력 확보를 위해 국토교통부·법무부 사전 협의 필요</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>PureEdge 향후 발전 방향 (논문 Future Work 기반)</h3>
+      <div class="step-grid">
+        <div class="step">
+          <div class="step-num">단기</div>
+          <h4>강화학습(RL) 통합</h4>
+          <p>현재 Random Forest(지도학습) → 강화학습 에이전트로 업그레이드. 실시간 환경 변화에 스스로 적응하는 자가 진화 페일오버 시스템 구현.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">중기</div>
+          <h4>블록체인 기반 인증 강화</h4>
+          <p>랜섬웨어·해킹 공격에 대응하는 블록체인 기반 노드 인증 메커니즘 도입. 2025년 ARINC 랜섬웨어 사례 재발 방지.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">장기</div>
+          <h4>예측형 에너지 관리</h4>
+          <p>워크로드 예측 기반 선제적 에너지 조정으로 디바이스 수명 극대화. IoT 배터리 디바이스 환경 최적화.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────── (기존) 참고 문헌 ──────────────── -->
+  <section id="refs">
+    <div class="section-title">
+      <div class="section-num" style="background:var(--muted);">ref</div>
+      <h2>참고 문헌 및 출처</h2>
+    </div>
+
+    <div class="box info" style="margin-top:16px;">
+      <strong>참고 문헌 및 출처</strong>
+      Rizal Syamsul, Kim Dong-Seong. "PureEdge AI-Driven Scheduling for Failover Management in Edge Computing Systems." ICT Convergence Research Center, Kumoh National Institute of Technology &amp; NSLab Co. Ltd., Gumi, Korea. &nbsp;|&nbsp;
+      NSLab PureEdge 공식 제품 페이지: <a href="https://nslab.tech/nslab/product/pure-edge" style="color:var(--accent);">nslab.tech/nslab/product/pure-edge</a> &nbsp;|&nbsp;
+      인천공항 체크인 장애 관련 국내 언론 보도 (2026.10.30): 경인일보, 세계일보, 서울경제, SBS, YTN 외.
+    </div>
+  </section>
+
+</main>
+
+<!-- ────────────────────────── FOOTER ────────────────────────── -->
+<footer>
+  <strong>NSLab Inc.</strong> · 블록체인·메타버스·국방 R&amp;D · 경북 구미 본사 / 서울 강남 지사<br>
+  학술 연계: 금오공과대학교 ICT융합연구센터 (IITP-2023-2020-0-01612) · 보고서 작성: 2026-11-02 &nbsp;|&nbsp;
+  <a href="summary.html">&#8592; 요약 보기 (5장)</a> &nbsp;|&nbsp;
+  <a href="index.html">🏠 홈</a>
+</footer>
+
+</body>
+</html>

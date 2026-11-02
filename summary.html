@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3분 요약 | 인천공항 장애 × PureEdge — NSLab Inc.</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <style>
+    /* ── Design tokens ── */
+    :root {
+      --red:    #e74c3c;
+      --blue:   #2563eb;
+      --green:  #16a34a;
+      --amber:  #ea580c;
+      --white:  #ffffff;
+      --topbar: 52px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background: #0d1b2a;
+      color: var(--white);
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-text-size-adjust: 100%;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+
+    /* ════════════════════════════════
+       TOP BAR
+    ════════════════════════════════ */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+      background: rgba(13,27,42,.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      height: var(--topbar);
+      display: flex; align-items: center;
+      padding: 0 20px; gap: 12px;
+    }
+    .topbar .home-link {
+      font-size: 12px; font-weight: 700;
+      color: rgba(255,255,255,.5);
+      text-decoration: none;
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.15);
+      white-space: nowrap;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+    .topbar .home-link:hover { color: #fff; border-color: rgba(255,255,255,.4); }
+    .topbar .brand {
+      font-size: 13px; font-weight: 700;
+      color: rgba(255,255,255,.75); white-space: nowrap;
+    }
+    .topbar .spacer { flex: 1; }
+
+    /* view toggle */
+    .view-toggle {
+      display: flex; background: rgba(255,255,255,.1); border-radius: 20px; padding: 3px;
+    }
+    .view-toggle button {
+      border: none; background: transparent; cursor: pointer;
+      font-size: 12px; font-weight: 700; color: rgba(255,255,255,.5);
+      padding: 5px 14px; border-radius: 16px;
+      transition: all .2s;
+      font-family: inherit;
+    }
+    .view-toggle button.active {
+      background: rgba(255,255,255,.2); color: #fff;
+    }
+
+    /* page nav in topbar */
+    .page-nav {
+      display: none;
+      align-items: center; gap: 6px;
+    }
+    .page-nav button {
+      border: 1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.7); cursor: pointer;
+      width: 32px; height: 32px; border-radius: 8px;
+      font-size: 16px; display: flex; align-items: center; justify-content: center;
+      transition: all .2s; font-family: inherit;
+    }
+    .page-nav button:hover { background: rgba(255,255,255,.2); color: #fff; }
+    .page-nav .page-counter {
+      font-size: 13px; font-weight: 700; color: rgba(255,255,255,.5);
+      min-width: 40px; text-align: center;
+    }
+
+    .topbar a.detail-link {
+      font-size: 12px; font-weight: 700;
+      color: #7ec8ff; text-decoration: none;
+      padding: 6px 12px; border-radius: 16px;
+      border: 1px solid rgba(37,99,235,.5);
+      background: rgba(37,99,235,.25);
+      white-space: nowrap;
+      transition: all .2s;
+    }
+    .topbar a.detail-link:hover { background: rgba(37,99,235,.5); color: #fff; }
+
+    /* ════════════════════════════════
+       SCROLL CONTAINER
+    ════════════════════════════════ */
+    .scroll-container {
+      padding-top: var(--topbar);
+    }
+
+    /* ════════════════════════════════
+       SLIDE BASE
+    ════════════════════════════════ */
+    .slide {
+      padding: 48px 60px 56px;
+      display: flex; flex-direction: column; justify-content: center;
+      position: relative; min-height: 100dvh;
+    }
+    @media (max-width: 768px) {
+      .slide { padding: 40px 22px 48px; min-height: 100dvh; }
+    }
+
+    .slide-badge {
+      position: absolute; top: 60px; right: 60px;
+      font-size: 12px; font-weight: 700; letter-spacing: .14em;
+      color: rgba(255,255,255,.28);
+    }
+    @media (max-width: 768px) { .slide-badge { top: 48px; right: 22px; } }
+
+    /* ════════════════════════════════
+       PAGE VIEW MODE
+    ════════════════════════════════ */
+    body.page-mode .scroll-container {
+      padding-top: 0;
+      margin-top: var(--topbar);
+      height: calc(100dvh - var(--topbar));
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+    }
+    body.page-mode .scroll-container::-webkit-scrollbar { display: none; }
+
+    body.page-mode .slide {
+      height: calc(100dvh - var(--topbar));
+      min-height: unset;
+      scroll-snap-align: start;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.15) transparent;
+    }
+    body.page-mode .page-nav { display: flex; }
+
+    /* ════════════════════════════════
+       SCROLL VIEW MODE
+    ════════════════════════════════ */
+    body.scroll-mode .slide {
+      min-height: auto;
+      border-bottom: 2px solid rgba(255,255,255,.06);
+      padding-bottom: 64px;
+    }
+    body.scroll-mode .slide:last-child { border-bottom: none; }
+
+    /* ════════════════════════════════
+       SLIDE DOTS NAV (right side)
+    ════════════════════════════════ */
+    .dot-nav {
+      position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+      z-index: 200; display: flex; flex-direction: column; gap: 12px;
+    }
+    .dot-nav a {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: rgba(255,255,255,.22); display: block;
+      text-decoration: none; transition: all .2s;
+    }
+    .dot-nav a:hover { background: rgba(255,255,255,.7); transform: scale(1.35); }
+    body.scroll-mode .dot-nav { display: none; }
+
+    /* ════════════════════════════════
+       SLIDE TYPOGRAPHY
+    ════════════════════════════════ */
+    .kicker {
+      font-size: clamp(11px, 1.2vw, 13px);
+      font-weight: 700;
+      letter-spacing: .12em;
+      color: rgba(255,255,255,.45);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+    h2 {
+      font-size: clamp(32px, 5.5vw, 64px);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 18px;
+      letter-spacing: -.02em;
+    }
+    .sub {
+      font-size: clamp(14px, 1.5vw, 16px);
+      color: rgba(255,255,255,.6);
+      line-height: 1.75;
+      margin-bottom: 24px;
+    }
+
+    /* ════════════════════════════════
+       FACT GRID (Page 1)
+    ════════════════════════════════ */
+    .fact-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 640px) { .fact-grid { grid-template-columns: repeat(3,1fr); gap: 10px; } }
+    .fact {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px;
+      padding: 14px 12px;
+    }
+    .num { font-size: clamp(22px, 3.5vw, 36px); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .unit { font-size: 12px; color: rgba(255,255,255,.5); margin-top: 4px; }
+
+    /* ════════════════════════════════
+       TIMELINE
+    ════════════════════════════════ */
+    .tl { list-style: none; margin-bottom: 4px; }
+    .tl li {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      font-size: clamp(13px, 1.4vw, 14.5px);
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      line-height: 1.55;
+    }
+    .tl li:last-child { border-bottom: none; }
+    .t {
+      background: var(--red);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ════════════════════════════════
+       CALLOUT
+    ════════════════════════════════ */
+    .callout {
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: clamp(13px, 1.3vw, 14px);
+      line-height: 1.7;
+      margin-top: 4px;
+    }
+    .callout strong { display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em; margin-bottom: 6px; }
+    .callout.amber { background: rgba(234,88,12,.15); border-left: 3px solid var(--amber); }
+    .callout.red   { background: rgba(231,76,60,.15);  border-left: 3px solid var(--red); }
+    .callout.blue  { background: rgba(37,99,235,.15);  border-left: 3px solid var(--blue); }
+
+    /* ════════════════════════════════
+       THREE-COL GRID
+    ════════════════════════════════ */
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 768px) { .three-col { grid-template-columns: 1fr; } }
+    .col-card {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px;
+      padding: 18px 16px;
+    }
+    .col-card .icon { font-size: 20px; margin-bottom: 8px; display: block; }
+    .col-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .col-card p { font-size: 13px; color: rgba(255,255,255,.55); line-height: 1.6; }
+
+    /* ════════════════════════════════
+       FLOW (Page 4)
+    ════════════════════════════════ */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 0;
+    }
+    @media (max-width: 640px) { .flow-arr { display: none; } .flow { gap: 6px; } }
+    .flow-node {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .flow-node.on { border-color: var(--green); background: rgba(22,163,74,.2); }
+    .flow-node.bk { border-color: var(--blue); background: rgba(37,99,235,.2); }
+    .flow-node.of { border-color: var(--amber); background: rgba(234,88,12,.2); }
+    .flow-node small { display: block; font-size: 10px; font-weight: 400; opacity: .7; }
+    .flow-arr { font-size: 18px; color: rgba(255,255,255,.3); flex-shrink: 0; }
+
+    /* ════════════════════════════════
+       PERFORMANCE TILES
+    ════════════════════════════════ */
+    .perf-headline {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 640px) { .perf-headline { grid-template-columns: 1fr; } }
+    .perf-tile {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px;
+      padding: 16px 14px;
+      text-align: center;
+    }
+    .perf-tile .big {
+      font-size: clamp(36px, 5vw, 60px);
+      font-weight: 800;
+      color: var(--green);
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+    }
+    .perf-tile .desc { font-size: 12px; color: rgba(255,255,255,.5); margin-top: 6px; line-height: 1.5; }
+    .perf-tile .src-tag { font-size: 11px; color: rgba(255,255,255,.3); margin-top: 4px; }
+
+    /* ════════════════════════════════
+       BAR CHART
+    ════════════════════════════════ */
+    .bar-section { margin-bottom: 16px; }
+    .bar-section h4 { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: rgba(255,255,255,.7); }
+    .pbar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    @media (max-width: 480px) { .pbar-label { width: 90px; font-size: 12px; } }
+    .pbar-label { width: 120px; font-size: 13px; flex-shrink: 0; color: rgba(255,255,255,.7); }
+    .pbar-bg { flex: 1; background: rgba(255,255,255,.08); border-radius: 4px; height: 24px; overflow: hidden; }
+    .pbar-fill {
+      height: 100%; border-radius: 4px;
+      display: flex; align-items: center; padding-left: 8px;
+      font-size: 11px; font-weight: 700; color: rgba(255,255,255,.9);
+      white-space: nowrap; font-variant-numeric: tabular-nums;
+    }
+
+    /* ════════════════════════════════
+       SUCCESS RATE CARDS
+    ════════════════════════════════ */
+    .sr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    @media (max-width: 640px) { .sr-grid { grid-template-columns: 1fr; } }
+    .sr-card {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .sr-card.winner { border-color: var(--green); background: rgba(22,163,74,.12); }
+    .method { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: rgba(255,255,255,.5); margin-bottom: 8px; }
+    .sr-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+    .sr-row .label { color: rgba(255,255,255,.45); }
+    .sr-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .sr-row .val.best { color: #6ee7a0; font-weight: 700; }
+    .footnote { font-size: 11px; color: rgba(255,255,255,.28); line-height: 1.7; margin-top: 6px; }
+
+    /* ════════════════════════════════
+       BEFORE / AFTER
+    ════════════════════════════════ */
+    .ba-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .ba-grid { grid-template-columns: 1fr; } }
+    .ba-card { border-radius: 10px; padding: 18px 16px; }
+    .ba-card.before { background: rgba(231,76,60,.1); border: 1px solid rgba(231,76,60,.25); }
+    .ba-card.after  { background: rgba(22,163,74,.1);  border: 1px solid rgba(22,163,74,.25); }
+    .ba-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; margin-bottom: 12px; }
+    .ba-card.before .ba-label { color: rgba(231,76,60,.8); }
+    .ba-card.after  .ba-label { color: rgba(22,163,74,.8); }
+    .ba-card ul { list-style: none; font-size: clamp(12px, 1.3vw, 13.5px); line-height: 2; }
+
+    /* ════════════════════════════════
+       ROADMAP
+    ════════════════════════════════ */
+    .road-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+    @media (max-width: 640px) { .road-grid { grid-template-columns: 1fr; } }
+    .road {
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px; padding: 20px 16px; position: relative;
+    }
+    .road .phase {
+      position: absolute; top: -12px; left: 16px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 8px;
+    }
+    .road h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; margin-top: 4px; }
+    .road p  { font-size: 13px; color: rgba(255,255,255,.55); line-height: 1.65; }
+
+    /* ════════════════════════════════
+       SEPARATOR / DETAIL BTN
+    ════════════════════════════════ */
+    .sep { border: none; border-top: 1px solid rgba(255,255,255,.1); margin: 20px 0; }
+    .detail-btn {
+      display: inline-block;
+      background: rgba(37,99,235,.25);
+      border: 1px solid rgba(37,99,235,.5);
+      color: #7ec8ff;
+      text-decoration: none;
+      font-size: 14px; font-weight: 700;
+      padding: 12px 24px; border-radius: 10px;
+      transition: all .2s; white-space: nowrap;
+    }
+    .detail-btn:hover { background: rgba(37,99,235,.4); border-color: rgba(37,99,235,.75); color: #fff; }
+
+    /* ════════════════════════════════
+       MOBILE BOTTOM NAV
+    ════════════════════════════════ */
+    .mobile-page-nav {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+      background: rgba(13,27,42,.95);
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding: 10px 20px;
+      align-items: center; justify-content: space-between;
+      backdrop-filter: blur(10px);
+    }
+    body.page-mode .mobile-page-nav { display: flex; }
+    @media (min-width: 769px) { body.page-mode .mobile-page-nav { display: none; } }
+    @media (max-width: 768px) { body.page-mode .page-nav { display: none; } }
+    .mobile-page-nav button {
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.08); color: rgba(255,255,255,.7);
+      cursor: pointer; padding: 10px 24px; border-radius: 10px;
+      font-size: 18px; font-weight: 700; font-family: inherit;
+      transition: all .2s;
+    }
+    .mobile-page-nav button:hover { background: rgba(255,255,255,.2); }
+    .mobile-page-nav .mob-counter {
+      font-size: 14px; font-weight: 700; color: rgba(255,255,255,.5);
+    }
+
+    /* ════════════════════════════════
+       PRINT
+    ════════════════════════════════ */
+    @media print {
+      .topbar, .dot-nav, .mobile-page-nav, .no-print { display: none !important; }
+      body { background: #fff !important; color: #1e293b !important; }
+      .slide { background: #fff !important; page-break-after: always; min-height: auto; }
+      .scroll-container { overflow: visible; scroll-snap-type: none; }
+    }
+  </style>
+</head>
+<body class="page-mode">
+
+<!-- ════════════════════════════════
+     TOP BAR
+════════════════════════════════ -->
+<div class="topbar">
+  <a href="index.html" class="home-link">← 홈</a>
+  <div class="brand">NSLab · 인천공항 분석 · 요약</div>
+
+  <!-- Page nav (page mode only) -->
+  <div class="page-nav" id="pageNav">
+    <button onclick="goPage(-1)" title="이전">&#8592;</button>
+    <div class="page-counter" id="pageCounter">1 / 5</div>
+    <button onclick="goPage(1)" title="다음">&#8594;</button>
+  </div>
+
+  <div class="spacer"></div>
+
+  <!-- View toggle -->
+  <div class="view-toggle">
+    <button id="btnPage" class="active" onclick="setView('page')">페이지</button>
+    <button id="btnScroll" onclick="setView('scroll')">스크롤</button>
+  </div>
+
+  <a href="detail.html" class="detail-link">상세 →</a>
+</div>
+
+<!-- Dot nav (page mode, desktop) -->
+<nav class="dot-nav" id="dotNav">
+  <a href="#s1" data-page="0" title="사건"></a>
+  <a href="#s2" data-page="1" title="패턴"></a>
+  <a href="#s3" data-page="2" title="원인"></a>
+  <a href="#s4" data-page="3" title="해결"></a>
+  <a href="#s5" data-page="4" title="제안"></a>
+</nav>
+
+<!-- Mobile bottom nav (page mode) -->
+<div class="mobile-page-nav">
+  <button onclick="goPage(-1)">&#8592;</button>
+  <div class="mob-counter" id="mobCounter">1 / 5</div>
+  <button onclick="goPage(1)">&#8594;</button>
+</div>
+
+
+<!-- ════════════════════════════════
+     SCROLL CONTAINER
+════════════════════════════════ -->
+<div class="scroll-container" id="scrollContainer">
+
+
+<!-- ██ PAGE 1 · 사건 ██ -->
+<section class="slide" id="s1">
+  <div class="slide-badge">01 / 05</div>
+  <div class="kicker">What Happened · 2026.10.30 인천국제공항</div>
+  <h2>하루 만에<br>승객 1,200명이<br>발이 묶였다</h2>
+  <p class="sub">항공 체크인·발권 시스템이 <strong>12시간</strong> 동안 마비됐다.<br>두 개의 외부 시스템이 동시에 무너졌다.</p>
+
+  <div class="fact-grid">
+    <div class="fact">
+      <div class="num" style="color:#ff6b6b;">12시간</div>
+      <div class="unit">장애 지속 (04:30 → 17:00)</div>
+    </div>
+    <div class="fact">
+      <div class="num" style="color:#ffa94d;">38편</div>
+      <div class="unit">항공편 지연 (중국 3사)</div>
+    </div>
+    <div class="fact">
+      <div class="num" style="color:#ffd43b;">1,200명</div>
+      <div class="unit">최대 동시 대기 승객</div>
+    </div>
+  </div>
+
+  <ul class="tl">
+    <li>
+      <span class="t">04:30</span>
+      <div><strong>ARINC 통신망 장애</strong> — 13개 항공사(T1·T2) 카운터 통신 간헐 단절. 에어링크(Collins Aerospace/RTX) 글로벌망.</div>
+    </li>
+    <li>
+      <span class="t">12:00</span>
+      <div><strong>TravelSky 발권 완전 정지</strong> — 중국동방·중국남방·에어차이나 수기 수속 전환. 처리 속도 급락.</div>
+    </li>
+    <li>
+      <span class="t">15:20</span>
+      <div><strong>ARINC 복구</strong> — TravelSky는 여전히 불안정. 중국 3사 지연 지속.</div>
+    </li>
+    <li>
+      <span class="t">17:00</span>
+      <div><strong>전체 복구 완료</strong> — 발생 약 12시간 만. 38편 전량 지연 기록.</div>
+    </li>
+  </ul>
+
+  <div class="callout amber" style="margin-top:18px;">
+    <strong>핵심 관찰</strong>
+    자체 백업 보유 항공사(대한항공 등) → 줄만 길어짐, 지연 없음.<br>
+    TravelSky 단독 의존 중국 3사 → 38편 전량 지연.<br>
+    <strong>백업 유무가 피해를 갈랐다.</strong>
+  </div>
+</section>
+
+
+<!-- ██ PAGE 2 · 반복 패턴 ██ -->
+<section class="slide" id="s2">
+  <div class="slide-badge">02 / 05</div>
+  <div class="kicker">Repeating Pattern · 이번이 처음이 아니다</div>
+  <h2>같은 구조가<br>3년 연속<br>무너졌다</h2>
+  <p class="sub">단일 외부 공급자 의존 + 자동 전환 부재. 2024년부터 매년 같은 방식으로 공항이 멈췄다.</p>
+
+  <div class="three-col" style="margin-bottom:22px;">
+    <div class="col-card">
+      <div class="icon">💻</div>
+      <h4>2024년 7월 — MS·CrowdStrike</h4>
+      <p>인천공항 5개 항공사. 101편 지연, 4편 결항. 수기 발권 100m+.<br><strong style="color:rgba(255,255,255,.9);">자체 클라우드 항공사는 무피해.</strong></p>
+    </div>
+    <div class="col-card">
+      <div class="icon">🔐</div>
+      <h4>2025년 9월 — ARINC 랜섬웨어</h4>
+      <p>히스로·브뤼셀·베를린 수기 체크인.<br><strong style="color:rgba(255,255,255,.9);">BA는 자체 백업으로 운항 유지.</strong><br>"집중 리스크" 대표 사례.</p>
+    </div>
+    <div class="col-card" style="background:rgba(231,76,60,.2);border-color:rgba(231,76,60,.4);">
+      <div class="icon">✈️</div>
+      <h4>2026년 10월 — 인천공항 <span style="color:#ff6b6b;">★ 이번</span></h4>
+      <p>ARINC + TravelSky 중첩 장애. 12시간, 1,200명, 38편.<br><strong style="color:#ff9999;">이중 의존 + 자동 전환 부재 → 피해 극대화.</strong></p>
+    </div>
+  </div>
+
+  <div class="callout red">
+    <strong>반복 패턴 — 아키텍처 수준 문제</strong>
+    3건 모두 동일 구조:<br>
+    <strong>외부 단일 시스템 의존 → 장애 → 자동 전환 없음 → 수동 대응 한계 → 대규모 지연</strong><br>
+    개별 사고가 아닌 <strong>구조적 취약점</strong>이다. 다음에도 반복된다.
+  </div>
+</section>
+
+
+<!-- ██ PAGE 3 · 핵심 문제 ██ -->
+<section class="slide" id="s3">
+  <div class="slide-badge">03 / 05</div>
+  <div class="kicker">Root Cause · 핵심 문제 일반화</div>
+  <h2>"왜 자동으로<br>전환하지<br>못했나?"</h2>
+  <p class="sub">오프라인 수기 수속은 이미 있었다. 문제는 <strong>이중화와 자동 전환이 없었다</strong>는 것이다.</p>
+
+  <div class="three-col" style="margin-bottom:22px;">
+    <div class="col-card">
+      <div class="icon">🔗</div>
+      <h4>계층 1 — 단일 장애점 (SPOF)</h4>
+      <p>ARINC·TravelSky 각각 단일 경로. 해당 시스템 장애 = 전체 서비스 중단. 대안 없음.</p>
+    </div>
+    <div class="col-card">
+      <div class="icon">⚡</div>
+      <h4>계층 2 — 자동 전환 부재</h4>
+      <p>장애 감지→전환이 100% 수동. 감지 지연 + 보고 + 결정 + 전환으로 <strong style="color:#ffa94d;">이번 사고 7.5시간 공백.</strong></p>
+    </div>
+    <div class="col-card">
+      <div class="icon">🗄️</div>
+      <h4>계층 3 — 오프라인 능력 부족</h4>
+      <p>수기 수속은 기존 명단만 가능. 재발권·좌석 변경·연결편 불가. 복구 후 전량 수동 동기화.</p>
+    </div>
+  </div>
+
+  <div class="callout blue">
+    <strong>일반화된 핵심 문제</strong>
+    미션 크리티컬 인프라가 <strong>단일 외부 공급자에 단독 의존</strong>하면서,<br>
+    장애 감지–전환–복구를 <strong>자동화하지 않아</strong><br>
+    수동 대응의 처리 한계가 <strong>서비스 중단으로 직결</strong>된다.
+  </div>
+
+  <p style="font-size:clamp(13px,1.4vw,15px); color:rgba(255,255,255,.4); margin-top:4px;">
+    동일 패턴 반복 영역 — IoT 엣지 컴퓨팅 · 금융 결제 게이트웨이 · 스마트 공장 MES · 병원 의료 정보 · 물류 WMS
+  </p>
+</section>
+
+
+<!-- ██ PAGE 4 · PureEdge 해결 ██ -->
+<section class="slide" id="s4">
+  <div class="slide-badge">04 / 05</div>
+  <div class="kicker">Solution · NSLab Inc. 자체 개발 제품 — PureEdge</div>
+  <h2>AI가 20ms 안에<br>전환을 결정한다</h2>
+  <p class="sub"><strong>NSLab Inc.</strong>(구미/서울, 대표 김동성)가 개발한 <strong>"오프라인 환경을 위한 AI 기반 블록체인 엣지 엔진"</strong>.<br>Random Forest 분류기로 장애를 <strong>사전 예측</strong>하고, Primary → Backup → Offline 3단계를 <strong>자동 실행</strong>한다.</p>
+
+  <!-- Flow -->
+  <div class="flow" style="margin-bottom:20px;">
+    <div class="flow-node on">PRIMARY<br><small>Edge Server · 실시간</small></div>
+    <div class="flow-arr">→</div>
+    <div class="flow-node bk">BACKUP<br><small>IPFS · Pure Chain</small></div>
+    <div class="flow-arr">→</div>
+    <div class="flow-node of">OFFLINE<br><small>Pure Wallet+</small></div>
+    <div class="flow-arr">↺</div>
+    <div class="flow-node">자동 동기화<br><small>복구 후 병합</small></div>
+  </div>
+
+  <!-- Big perf tiles -->
+  <div class="perf-headline">
+    <div class="perf-tile">
+      <div class="big">65.5%</div>
+      <div class="desc">총 전환 시간 단축<br>Round Robin 대비</div>
+      <div class="src-tag">출처 ①</div>
+    </div>
+    <div class="perf-tile">
+      <div class="big">61.4%</div>
+      <div class="desc">전환 횟수 감소<br>Round Robin 대비</div>
+      <div class="src-tag">출처 ①</div>
+    </div>
+    <div class="perf-tile">
+      <div class="big">20ms</div>
+      <div class="desc">페일오버 전환 시간<br>실측 기준</div>
+      <div class="src-tag">출처 ①</div>
+    </div>
+  </div>
+
+  <!-- Bar chart -->
+  <div class="bar-section">
+    <h4>총 전환 시간 비교 (낮을수록 좋음)</h4>
+    <div class="pbar-row">
+      <div class="pbar-label">Round Robin</div>
+      <div class="pbar-bg">
+        <div class="pbar-fill" style="width:100%;background:#c0392b;">4,139ms · 611회</div>
+      </div>
+    </div>
+    <div class="pbar-row">
+      <div class="pbar-label">Energy-Aware</div>
+      <div class="pbar-bg">
+        <div class="pbar-fill" style="width:100%;background:#d35400;">4,149ms · 642회</div>
+      </div>
+    </div>
+    <div class="pbar-row">
+      <div class="pbar-label" style="color:#6ee7a0;font-size:15px;">PureEdge AI ★</div>
+      <div class="pbar-bg">
+        <div class="pbar-fill" style="width:34.6%;background:#1a7a4a;">1,430ms · 236회</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success rate -->
+  <div class="sr-grid" style="margin-bottom:14px;">
+    <div class="sr-card">
+      <div class="method">ROUND ROBIN</div>
+      <div class="sr-row"><span class="label">Primary</span><span class="val">38.9%</span></div>
+      <div class="sr-row"><span class="label">Backup</span><span class="val">38.3%</span></div>
+      <div class="sr-row"><span class="label">Offline</span><span class="val">22.8%</span></div>
+    </div>
+    <div class="sr-card">
+      <div class="method">ENERGY-AWARE</div>
+      <div class="sr-row"><span class="label">Primary</span><span class="val">30.2%</span></div>
+      <div class="sr-row"><span class="label">Backup</span><span class="val">32.3%</span></div>
+      <div class="sr-row"><span class="label">Offline</span><span class="val" style="color:#ffa94d;">37.5% ↑과다</span></div>
+    </div>
+    <div class="sr-card winner">
+      <div class="method" style="color:#6ee7a0;">PUREEDGE AI ★</div>
+      <div class="sr-row"><span class="label">Primary</span><span class="val">35.2%</span></div>
+      <div class="sr-row"><span class="label">Backup</span><span class="val best">39.9% 최고</span></div>
+      <div class="sr-row"><span class="label">Offline</span><span class="val">24.9%</span></div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    ① NSLab PureEdge 공식 제품 페이지 — nslab.tech/nslab/product/pure-edge (65.5% · 61.4% · 20~30ms)<br>
+    ② Rizal Syamsul, Kim Dong-Seong. "PureEdge AI-Driven Scheduling for Failover Management in Edge Computing Systems." Table I &amp; Table II. ICT Convergence Research Center, Kumoh National Institute of Technology &amp; NSLab Co. Ltd.
+  </div>
+</section>
+
+
+<!-- ██ PAGE 5 · 제안 ██ -->
+<section class="slide" id="s5">
+  <div class="slide-badge">05 / 05</div>
+  <div class="kicker">Proposal · 인천공항 적용 제안</div>
+  <h2>12시간을<br>20ms로 줄인다</h2>
+  <p class="sub">PureEdge 3단계 도입으로 수동 대응 의존을 제거하고, 장애 발생 즉시 <strong>자동 전환·유지·복구</strong>를 구축한다.</p>
+
+  <div class="ba-grid" style="margin-bottom:22px;">
+    <div class="ba-card before">
+      <div class="ba-label">BEFORE · 현재 구조</div>
+      <ul>
+        <li>❌ ARINC 단일 경로 — 대안 없음</li>
+        <li>❌ TravelSky 단독 의존</li>
+        <li>❌ 장애 감지 → 수동 신고 → 수시간 공백</li>
+        <li>❌ 수기 수속 — 속도 한계·오류 위험</li>
+        <li>❌ 복구 후 전량 수동 검토</li>
+      </ul>
+    </div>
+    <div class="ba-card after">
+      <div class="ba-label">AFTER · PureEdge 적용</div>
+      <ul>
+        <li>✅ 다중 통신 경로 AI 자동 전환 (20ms)</li>
+        <li>✅ Backup IPFS 서버로 발권 지속</li>
+        <li>✅ Pure Wallet+로 Offline 체크인 자동 처리</li>
+        <li>✅ 수기 수속 의존 제거</li>
+        <li>✅ 복구 후 자동 동기화 · 충돌만 큐 처리</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="road-grid" style="margin-bottom:22px;">
+    <div class="road">
+      <div class="phase">1단계</div>
+      <h4>모니터링 계층 구축</h4>
+      <p>ARINC·TravelSky 상태 실시간 수집 에이전트. 기존 인프라 무변경.</p>
+    </div>
+    <div class="road">
+      <div class="phase">2단계</div>
+      <h4>AI 스케줄러 통합</h4>
+      <p>Primary→Backup 자동 전환 파일럿. 취약 항공사 우선 적용.</p>
+    </div>
+    <div class="road">
+      <div class="phase">3단계</div>
+      <h4>오프라인 처리 + 동기화</h4>
+      <p>Pure Wallet+ · IPFS 전면 도입. 완전 자율 3단계 페일오버 완성.</p>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+    <p style="font-size:clamp(12px,1.3vw,14px);color:rgba(255,255,255,.45);">
+      <strong style="color:rgba(255,255,255,.75);">NSLab Inc.</strong> — 블록체인·메타버스·국방 소프트웨어 R&amp;D<br>
+      대표: 김동성 · 경상북도 구미 본사 / 서울 강남 지사<br>
+      학술 연계: 금오공과대학교 ICT융합연구센터 (IITP 지원)<br>
+      <a href="https://nslab.tech/nslab/product/pure-edge" style="color:#7ec8ff;">nslab.tech/nslab/product/pure-edge</a>
+    </p>
+    <a href="detail.html" class="detail-btn">상세 분석 (7섹션 전체) →</a>
+  </div>
+</section>
+
+
+</div><!-- /scroll-container -->
+
+
+<!-- ════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════ -->
+<script>
+  const slides = ['s1','s2','s3','s4','s5'];
+  const container = document.getElementById('scrollContainer');
+  let currentPage = 0;
+
+  /* ── View toggle ── */
+  function setView(mode) {
+    document.body.classList.remove('page-mode','scroll-mode');
+    document.body.classList.add(mode + '-mode');
+    document.getElementById('btnPage').classList.toggle('active', mode === 'page');
+    document.getElementById('btnScroll').classList.toggle('active', mode === 'scroll');
+    if (mode === 'page') {
+      scrollToPage(currentPage, 'instant');
+    }
+    localStorage.setItem('viewMode', mode);
+  }
+
+  /* ── Page navigation ── */
+  function scrollToPage(idx, behavior) {
+    idx = Math.max(0, Math.min(slides.length - 1, idx));
+    currentPage = idx;
+    const el = document.getElementById(slides[idx]);
+    if (el) el.scrollIntoView({ behavior: behavior || 'smooth' });
+    updateCounter();
+    updateDots();
+  }
+
+  function goPage(delta) {
+    if (!document.body.classList.contains('page-mode')) return;
+    scrollToPage(currentPage + delta);
+  }
+
+  function updateCounter() {
+    const txt = (currentPage + 1) + ' / ' + slides.length;
+    document.getElementById('pageCounter').textContent = txt;
+    document.getElementById('mobCounter').textContent = txt;
+  }
+
+  function updateDots() {
+    document.querySelectorAll('.dot-nav a').forEach((a, i) => {
+      a.style.background = i === currentPage
+        ? 'rgba(255,255,255,.85)'
+        : 'rgba(255,255,255,.22)';
+      a.style.transform = i === currentPage ? 'scale(1.4)' : 'scale(1)';
+    });
+  }
+
+  /* ── Intersection observer (track current page on scroll) ── */
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+        const idx = slides.indexOf(e.target.id);
+        if (idx !== -1) { currentPage = idx; updateCounter(); updateDots(); }
+      }
+    });
+  }, { threshold: 0.5, root: container });
+
+  slides.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) io.observe(el);
+  });
+
+  /* ── Keyboard navigation (page mode) ── */
+  document.addEventListener('keydown', e => {
+    if (!document.body.classList.contains('page-mode')) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); goPage(1); }
+    if (e.key === 'ArrowUp'   || e.key === 'ArrowLeft')  { e.preventDefault(); goPage(-1); }
+  });
+
+  /* ── Dot nav click ── */
+  document.querySelectorAll('.dot-nav a').forEach((a, i) => {
+    a.addEventListener('click', e => {
+      if (document.body.classList.contains('page-mode')) {
+        e.preventDefault();
+        scrollToPage(i);
+      }
+    });
+  });
+
+  /* ── Restore saved view mode ── */
+  const saved = localStorage.getItem('viewMode') || 'page';
+  setView(saved);
+  updateCounter();
+  updateDots();
+</script>
+
+</body>
+</html>
